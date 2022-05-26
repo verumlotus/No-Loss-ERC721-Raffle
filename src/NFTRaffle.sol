@@ -4,6 +4,8 @@ import "@chainlink/interfaces/VRFCoordinatorV2Interface.sol";
 import "@chainlink/VRFConsumerBaseV2.sol";
 import "@oz/token/ERC721/IERC721Receiver.sol";
 import "@oz/token/ERC721/IERC721.sol";
+import "@oz/token/ERC20/IERC20.sol";
+import "@oz/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title No-loss NFT Raffle
@@ -11,6 +13,7 @@ import "@oz/token/ERC721/IERC721.sol";
  * @author verumlotus
  */
 contract NFTRaffle is VRFConsumerBaseV2, IERC721Receiver {
+    using SafeERC20 for IERC20;
     /************************************************
      *  STORAGE
     ***********************************************/
@@ -29,6 +32,9 @@ contract NFTRaffle is VRFConsumerBaseV2, IERC721Receiver {
 
     /// @notice the largest ticket number that has been assigned
     uint256 public largestTicketNumber;
+
+    /// @notice mapping from user addr => array of Range structs
+    mapping(address => Range[]) public userTickets;
 
     /************************************************
      *  IMMUTABLES & CONSTANTS
@@ -58,8 +64,16 @@ contract NFTRaffle is VRFConsumerBaseV2, IERC721Receiver {
     uint16 public constant REQUEST_CONFIRMATIONS = 3;
 
     /************************************************
-     *  EVENTS, ERRORS, MODIFIERS
+     *  EVENTS, ERRORS, MODIFIERS, STRUCTS
     ***********************************************/
+    /// @notice Range struct to store range of tickets owned by a user
+    struct Range {
+        /// lowest ticket number
+        uint256 lowerBound;
+        /// highest ticket number
+        uint256 upperBound;
+    }
+
     /// @notice restricts function call to owner of the contract
     modifier onlyOwner {
         require(msg.sender == owner, "Only owner can call this function");
@@ -68,7 +82,13 @@ contract NFTRaffle is VRFConsumerBaseV2, IERC721Receiver {
 
     /// @notice restricts function call to only when deposit period is active
     modifier depositPeriodActive {
-        require (block.timestamp <= depositPeriodEndTime, "Deposit period has ended");
+        require(block.timestamp <= depositPeriodEndTime, "Deposit period has ended");
+        _;
+    }
+
+    /// @notice ensures that the NFT has been escrowed in this contract
+    modifier nftDeposited {
+        require(nftAddress != address(0));
         _;
     }
 
@@ -97,6 +117,20 @@ contract NFTRaffle is VRFConsumerBaseV2, IERC721Receiver {
         IERC721(_nftAddress).safeTransferFrom(msg.sender, address(this), _tokenId);
         nftAddress = _nftAddress;
         nftId = _tokenId;
+    }
+
+    /**
+     * @notice allows a user to enter the raffle
+     * @param amount the amount to enter into the raffle
+     */
+    function enterRaffle(uint256 amount) external depositPeriodActive {
+        // Transfer amount interestTokens to this contract
+        IERC20(interestToken).safeTransferFrom(msg.sender, address(this), amount);
+        Range memory range = Range(largestTicketNumber, largestTicketNumber + amount - 1);
+        // Add the tickets to the user
+        userTickets[msg.sender].push(range);
+        // Update largest ticket number
+        largestTicketNumber = largestTicketNumber + amount;
     }
 
     /**
