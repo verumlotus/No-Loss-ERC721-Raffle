@@ -179,10 +179,10 @@ contract NFTRaffle is VRFConsumerBaseV2, IERC721Receiver {
     }
 
     /**
-     * @notice allows for the owner to deposit the raffle deposits
+     * @notice allows for the owner to deposit the raffle deposits in a yield bearing strategy
      */
     function investRaffleDeposits() external onlyOwner {
-        // Ensure that the deposit period has finished, but the raffle period is active
+        // Ensure that the deposit period has finished, but the interest generation period is active
         require(depositPeriodEndTime < block.timestamp 
             && block.timestamp < raffleEndTime, 
             "Invalid timeframe to invest raffle deposits");
