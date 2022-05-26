@@ -6,6 +6,7 @@ import "@oz/token/ERC721/IERC721Receiver.sol";
 import "@oz/token/ERC721/IERC721.sol";
 import "@oz/token/ERC20/IERC20.sol";
 import "@oz/token/ERC20/utils/SafeERC20.sol";
+import "./interfaces/IYearnVault.sol";
 
 /**
  * @title No-loss NFT Raffle
@@ -36,6 +37,10 @@ contract NFTRaffle is VRFConsumerBaseV2, IERC721Receiver {
     /// @notice mapping from user addr => array of Range structs
     mapping(address => Range[]) public userTickets;
 
+    /// @notice balance of interestToken of this contracrt 
+    /// before investing in yield strategy
+    uint256 public interestTokenBalanceBefore;
+
     /************************************************
      *  IMMUTABLES & CONSTANTS
     ***********************************************/
@@ -53,6 +58,9 @@ contract NFTRaffle is VRFConsumerBaseV2, IERC721Receiver {
     /// @notice the end of the deposit period (window of time in which users can deposit interestTokens
     /// to be eligible for the raffle)
     uint256 public immutable depositPeriodEndTime;
+
+    /// @notice address of the Yearn Vault for the interestToken
+    address public immutable yearnVault;
 
     /// @notice key hash to specify the gas lane to utilize during the callback
     bytes32 public constant KEY_HASH = 0xff8dedfbfa60af186cf3c830acbc32c05aae823045ae5ea7da1e45fbfaba4f92; 
@@ -101,12 +109,14 @@ contract NFTRaffle is VRFConsumerBaseV2, IERC721Receiver {
      * @param _interestToken address of the interestToken
      * @param _depositPeriodLength the length of the deposit period
      * @param _raffleLength the length of the raffle period
+     * @param _yearnVault address of the yearn vault
      */
-    constructor(address _vrfCoordinator, address _interestToken, uint256 _depositPeriodLength, uint256 _raffleLength) VRFConsumerBaseV2(_vrfCoordinator) {
+    constructor(address _vrfCoordinator, address _interestToken, uint256 _depositPeriodLength, uint256 _raffleLength, address _yearnVault) VRFConsumerBaseV2(_vrfCoordinator) {
         owner = msg.sender;
         interestToken = _interestToken;
         depositPeriodEndTime = block.timestamp + _depositPeriodLength;
         raffleEndTime = block.timestamp + _depositPeriodLength + _raffleLength;
+        yearnVault = _yearnVault;
     }
 
     /**
@@ -135,6 +145,20 @@ contract NFTRaffle is VRFConsumerBaseV2, IERC721Receiver {
         // Update largest ticket number
         largestTicketNumber = largestTicketNumber + amount;
         emit RaffleEntered(msg.sender, amount);
+    }
+
+    /**
+     * @notice allows for the owner to deposit the raffle deposits
+     */
+    function investRaffleDeposits() external onlyOwner {
+        // Ensure that the deposit period has finished, but the raffle period is active
+        require(depositPeriodEndTime < block.timestamp 
+            && block.timestamp < raffleEndTime, 
+            "Invalid timeframe to invest raffle deposits");
+        interestTokenBalanceBefore = IERC20(interestToken).balanceOf(address(this));
+        // Approve the yearn vault to pull tokens 
+        IERC20(interestToken).approve(yearnVault, interestTokenBalanceBefore);
+        IYearnVault(yearnVault).deposit(interestTokenBalanceBefore);
     }
 
     /**
