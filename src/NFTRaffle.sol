@@ -109,6 +109,9 @@ contract NFTRaffle is VRFConsumerBaseV2, IERC721Receiver {
     /// @notice emitted when a user withdraws funds
     event FundsWithdrawn(address indexed depositor, uint256 amount);
 
+    /// @notice emitted when the NFT is claimed by the winner
+    event NFTClaimed(address winner);
+
     /// @notice restricts function call to owner of the contract
     modifier onlyOwner {
         require(msg.sender == owner, "Only owner can call this function");
@@ -229,8 +232,6 @@ contract NFTRaffle is VRFConsumerBaseV2, IERC721Receiver {
         emit FundsWithdrawn(msg.sender, amountToReturn);
     }
 
-    // TODO: Func for winner to claim NFT. Ensure that winner is set
-
     function requestRandomWords() external {
         // Anyone can call this function if the raffle period has ended
         require(block.timestamp > raffleEndTime, "raffle has not ended");
@@ -258,6 +259,27 @@ contract NFTRaffle is VRFConsumerBaseV2, IERC721Receiver {
         // Will be a number between 0 < X < largestTicketNumber 
         winningTicket = randomWords[0] % largestTicketNumber;
         winnerSet = true;
+    }
+
+    /**
+     * @notice allows a user to claim the NFT if they are a winner
+     */
+    function claimWinner() external {
+        require(winnerSet = true, "A winner has not been declared!");
+        Range[] memory depositRanges = userTickets[msg.sender];
+        // Loops are ugly ik! But a user should have realistically only deposited maximum a few times over
+        // the course of the raffle, so it won't gobble too much gas. 
+        bool isWinner = false;
+        for (uint i = 0; i < depositRanges.length; i++) {
+            Range memory range = depositRanges[i];
+            if (winningTicket >= range.lowerBound && winningTicket <= range.upperBound) {
+                isWinner = true;
+                break;
+            }
+        }
+        require(isWinner, "Caller is not a winner!");
+        IERC721(nftAddress).safeTransferFrom(address(this), msg.sender, nftId);
+        emit NFTClaimed(msg.sender);
     }
 
     /**
