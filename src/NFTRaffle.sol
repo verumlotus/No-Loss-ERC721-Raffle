@@ -177,7 +177,9 @@ contract NFTRaffle is VRFConsumerBaseV2, IERC721Receiver {
      * @dev notice that this assumes interest is positive - this is not always the case!
      */
     function withdrawRaffleDepositsFromYearn() external {
-        // First, require that we have not already called this function 
+        // Require that the Raffle has ended
+        require(block.timestamp > raffleEndTime, "Raffle has not ended");
+        // Also, require that we have not already called this function 
         require(interestGenerated == 0, "shares from Yearn already burned");
         // Will burn all our shares and return original deposit + interest
         IYearnVault(yearnVault).withdraw();
