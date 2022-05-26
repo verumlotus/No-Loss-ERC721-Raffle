@@ -2,19 +2,30 @@
 pragma solidity ^0.8.11;
 import "@chainlink/interfaces/VRFCoordinatorV2Interface.sol";
 import "@chainlink/VRFConsumerBaseV2.sol";
+import "@oz/token/ERC721/IERC721Receiver.sol";
+import "@oz/token/ERC721/IERC721.sol";
 
 /**
  * @title No-loss NFT Raffle
  * @notice No-loss NFT raffle that deposits user funds into a yield-bearing strategy and forwards all interest to NFT creator.
- * @author verum
+ * @author verumlotus
  */
-contract NFTRaffle is VRFConsumerBaseV2 {
+contract NFTRaffle is VRFConsumerBaseV2, IERC721Receiver {
     /************************************************
      *  STORAGE
     ***********************************************/
     /// @notice the ticket number that wins the raffle. This is the chainlink 
     /// VRF number modulo the number of tickets
     uint256 public winningTicket;
+
+    /// @notice flag to indicate whether a winningTicket has been selected
+    bool public winnerSet = false;
+
+    /// @notice address of the ERC721 asset
+    address public nftAddress;
+
+    /// @notice id of the ERC721 asset
+    uint256 public nftId;
 
     /// @notice the largest ticket number that has been assigned
     uint256 public largestTicketNumber;
@@ -49,6 +60,17 @@ contract NFTRaffle is VRFConsumerBaseV2 {
     /************************************************
      *  EVENTS, ERRORS, MODIFIERS
     ***********************************************/
+    /// @notice restricts function call to owner of the contract
+    modifier onlyOwner {
+        require(msg.sender == owner, "Only owner can call this function");
+        _;
+    }
+
+    /// @notice restricts function call to only when deposit period is active
+    modifier depositPeriodActive {
+        require (block.timestamp <= depositPeriodEndTime, "Deposit period has ended");
+        _;
+    }
 
     /**
      * @notice constructs a raffle contract 
@@ -65,11 +87,31 @@ contract NFTRaffle is VRFConsumerBaseV2 {
     }
 
     /**
+     * @notice transfers the NFT for raffle from the owner to this contract
+     * @dev note that the owner must call approve() or setApprovalForAll() before calling this function 
+     * @param _nftAddress address of the NFT contract
+     * @param _tokenId tokenId of the specific NFT up for raffle
+     */
+    function depositNFT(address _nftAddress, uint256 _tokenId) external onlyOwner {
+        // Attempt to transfer NFT from owner to this contract
+        IERC721(_nftAddress).safeTransferFrom(msg.sender, address(this), _tokenId);
+        nftAddress = _nftAddress;
+        nftId = _tokenId;
+    }
+
+    /**
      * @notice callback hook called by VRF coordinator
      * @param requestId The Id initially returned by requestRandomness
      * @param randomWords the VRF output expanded to the requested number of words
     */
     function fulfillRandomWords(uint256 requestId, uint256[] memory randomWords) override internal {
 
+    }
+
+    /**
+     * @inheritdoc IERC721Receiver
+     */
+    function onERC721Received(address, address, uint256, bytes memory) public pure override returns (bytes4) {
+        return this.onERC721Received.selector;
     }
 }
