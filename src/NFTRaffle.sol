@@ -47,6 +47,9 @@ contract NFTRaffle is VRFConsumerBaseV2, IERC721Receiver {
     /// @notice mapping to flag whether user has withdrawn funds
     mapping(address => bool) public withdrawnFunds;
 
+    /// @notice flag if a random word was requested
+    bool public randomWordRequested;
+
     /************************************************
      *  IMMUTABLES & CONSTANTS
     ***********************************************/
@@ -67,6 +70,12 @@ contract NFTRaffle is VRFConsumerBaseV2, IERC721Receiver {
 
     /// @notice address of the Yearn Vault for the interestToken
     address public immutable yearnVault;
+
+    /// @notice address of the VRF coordinator for this chain 
+    address public immutable vrfCoordinator;
+
+    /// @notice chainlink subscription id for chainlink VRF v2.0
+    uint64 public immutable chainlinkSubscriptionId;
 
     /// @notice key hash to specify the gas lane to utilize during the callback
     bytes32 public constant KEY_HASH = 0xff8dedfbfa60af186cf3c830acbc32c05aae823045ae5ea7da1e45fbfaba4f92; 
@@ -125,13 +134,16 @@ contract NFTRaffle is VRFConsumerBaseV2, IERC721Receiver {
      * @param _depositPeriodLength the length of the deposit period
      * @param _interestGenerationPeriod the length of the interest generation period
      * @param _yearnVault address of the yearn vault
+     * @param _chainlinkSubscriptionId id of the chainlink VRF subscription 
      */
-    constructor(address _vrfCoordinator, address _interestToken, uint256 _depositPeriodLength, uint256 _interestGenerationPeriod, address _yearnVault) VRFConsumerBaseV2(_vrfCoordinator) {
+    constructor(address _vrfCoordinator, address _interestToken, uint256 _depositPeriodLength, uint256 _interestGenerationPeriod, address _yearnVault, uint64 _chainlinkSubscriptionId) VRFConsumerBaseV2(_vrfCoordinator) {
+        vrfCoordinator = _vrfCoordinator;
         owner = msg.sender;
         interestToken = _interestToken;
         depositPeriodEndTime = block.timestamp + _depositPeriodLength;
         raffleEndTime = block.timestamp + _depositPeriodLength + _interestGenerationPeriod;
         yearnVault = _yearnVault;
+        chainlinkSubscriptionId = _chainlinkSubscriptionId;
     }
 
     /**
@@ -217,13 +229,35 @@ contract NFTRaffle is VRFConsumerBaseV2, IERC721Receiver {
         emit FundsWithdrawn(msg.sender, amountToReturn);
     }
 
+    // TODO: Func for winner to claim NFT. Ensure that winner is set
+
+    function requestRandomWords() external {
+        // Anyone can call this function if the raffle period has ended
+        require(block.timestamp > raffleEndTime, "raffle has not ended");
+
+        // You can only re-call this function, 7 days after the raffle period 
+        // has ended: this is to account for a reverted Tx with the Chainlink VRF
+        // callback
+        require(block.timestamp > raffleEndTime + 7 days ||
+            randomWordRequested == false);
+        randomWordRequested = true;
+        VRFCoordinatorV2Interface(vrfCoordinator).requestRandomWords(
+            KEY_HASH, 
+            chainlinkSubscriptionId, 
+            REQUEST_CONFIRMATIONS, 
+            CALL_BACK_GAS_LIMIT, 
+            1
+        );
+    }
+
     /**
      * @notice callback hook called by VRF coordinator
-     * @param requestId The Id initially returned by requestRandomness
      * @param randomWords the VRF output expanded to the requested number of words
     */
-    function fulfillRandomWords(uint256 requestId, uint256[] memory randomWords) override internal {
-
+    function fulfillRandomWords(uint256, uint256[] memory randomWords) override internal {
+        // Will be a number between 0 < X < largestTicketNumber 
+        winningTicket = randomWords[0] % largestTicketNumber;
+        winnerSet = true;
     }
 
     /**
