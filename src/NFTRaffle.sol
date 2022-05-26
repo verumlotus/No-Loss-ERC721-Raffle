@@ -44,6 +44,9 @@ contract NFTRaffle is VRFConsumerBaseV2, IERC721Receiver {
     /// @notice the amount of interest generated (calcualted after withdrawing from Yearn)
     uint256 public interestGenerated;
 
+    /// @notice mapping to flag whether user has withdrawn funds
+    mapping(address => bool) public withdrawnFunds;
+
     /************************************************
      *  IMMUTABLES & CONSTANTS
     ***********************************************/
@@ -93,6 +96,9 @@ contract NFTRaffle is VRFConsumerBaseV2, IERC721Receiver {
 
     /// @notice emitted when raffle deposits are invested
     event RaffleDepositsInvested(address indexed yearnVault, uint256 amount);
+
+    /// @notice emitted when a user withdraws funds
+    event FundsWithdrawn(address indexed depositor, uint256 amount);
 
     /// @notice restricts function call to owner of the contract
     modifier onlyOwner {
@@ -189,10 +195,26 @@ contract NFTRaffle is VRFConsumerBaseV2, IERC721Receiver {
     }
 
     /**
-     * @notice
+     * @notice allow users to withdraw their funds after the raffle period has ended
      */
     function withdrawRaffleDeposit() external {
-
+        // Require that the Raffle has ended
+        require(block.timestamp > raffleEndTime, "Raffle has not ended");
+        // Ensure user hasn't already withdrawn funds
+        require(withdrawnFunds[msg.sender] == false, "User has already withdrawn funds");
+        uint256 amountToReturn = 0;
+        Range[] memory depositRanges = userTickets[msg.sender];
+        // Loops are ugly ik! But a user should have realistically only deposited maximum a few times over
+        // the course of the raffle, so it won't gobble too much gas. 
+        for (uint i = 0; i < depositRanges.length; i++) {
+            Range memory range = depositRanges[i];
+            amountToReturn += range.upperBound - range.lowerBound + 1;
+        }
+        // Mark user as having withdrawn funds
+        withdrawnFunds[msg.sender] = true;
+        // Transfer funds to user
+        IERC20(interestToken).safeTransfer(msg.sender, amountToReturn);
+        emit FundsWithdrawn(msg.sender, amountToReturn);
     }
 
     /**
