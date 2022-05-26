@@ -108,14 +108,14 @@ contract NFTRaffle is VRFConsumerBaseV2, IERC721Receiver {
      * @param _vrfCoordinator address of the chainlink VRF coordinator for the desired chain
      * @param _interestToken address of the interestToken
      * @param _depositPeriodLength the length of the deposit period
-     * @param _raffleLength the length of the raffle period
+     * @param _interestGenerationPeriod the length of the interest generation period
      * @param _yearnVault address of the yearn vault
      */
-    constructor(address _vrfCoordinator, address _interestToken, uint256 _depositPeriodLength, uint256 _raffleLength, address _yearnVault) VRFConsumerBaseV2(_vrfCoordinator) {
+    constructor(address _vrfCoordinator, address _interestToken, uint256 _depositPeriodLength, uint256 _interestGenerationPeriod, address _yearnVault) VRFConsumerBaseV2(_vrfCoordinator) {
         owner = msg.sender;
         interestToken = _interestToken;
         depositPeriodEndTime = block.timestamp + _depositPeriodLength;
-        raffleEndTime = block.timestamp + _depositPeriodLength + _raffleLength;
+        raffleEndTime = block.timestamp + _depositPeriodLength + _interestGenerationPeriod;
         yearnVault = _yearnVault;
     }
 
