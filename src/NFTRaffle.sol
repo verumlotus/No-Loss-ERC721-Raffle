@@ -41,6 +41,9 @@ contract NFTRaffle is VRFConsumerBaseV2, IERC721Receiver {
     /// before investing in yield strategy
     uint256 public interestTokenBalanceBefore;
 
+    /// @notice the amount of interest generated (calcualted after withdrawing from Yearn)
+    uint256 public interestGenerated;
+
     /************************************************
      *  IMMUTABLES & CONSTANTS
     ***********************************************/
@@ -167,6 +170,27 @@ contract NFTRaffle is VRFConsumerBaseV2, IERC721Receiver {
         IERC20(interestToken).approve(yearnVault, interestTokenBalanceBefore);
         IYearnVault(yearnVault).deposit(interestTokenBalanceBefore);
         emit RaffleDepositsInvested(yearnVault, interestTokenBalanceBefore);
+    }
+
+    /**
+     * @notice burns all our yearn shares and returns us the deposit + interest
+     * @dev notice that this assumes interest is positive - this is not always the case!
+     */
+    function withdrawRaffleDepositsFromYearn() external {
+        // First, require that we have not already called this function 
+        require(interestGenerated == 0, "shares from Yearn already burned");
+        // Will burn all our shares and return original deposit + interest
+        IYearnVault(yearnVault).withdraw();
+        uint256 interestTokenBalance = IERC20(interestToken).balanceOf(address(this));
+        // This assumes that a positive interest was generated! (not always the case)
+        interestGenerated = interestTokenBalance - interestTokenBalanceBefore;
+    }
+
+    /**
+     * @notice
+     */
+    function withdrawRaffleDeposit() external {
+
     }
 
     /**
