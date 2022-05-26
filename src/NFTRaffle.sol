@@ -207,6 +207,8 @@ contract NFTRaffle is VRFConsumerBaseV2, IERC721Receiver {
         uint256 interestTokenBalance = IERC20(interestToken).balanceOf(address(this));
         // This assumes that a positive interest was generated! (not always the case)
         interestGenerated = interestTokenBalance - interestTokenBalanceBefore;
+        // Transfer interestGenerated to the artist (the owner)
+        IERC20(interestToken).transfer(owner, interestGenerated);
     }
 
     /**
