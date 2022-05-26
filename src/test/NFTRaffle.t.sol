@@ -3,7 +3,7 @@ pragma solidity ^0.8.11;
 
 import "./base/BaseTest.sol";
 
-contract ContractTest is BaseTest {
+contract NFTRaffleTest is BaseTest {
     function setUp() public {}
 
     function testExample() public {
