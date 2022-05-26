@@ -85,6 +85,12 @@ contract NFTRaffle is VRFConsumerBaseV2, IERC721Receiver {
     /// @notice emitted when the raffle is entered
     event RaffleEntered(address indexed depositor, uint256 amount);
 
+    /// @notice emitted when NFT is deposited by artist
+    event NFTDeposited(address nftAddress, uint256 tokenId);
+
+    /// @notice emitted when raffle deposits are invested
+    event RaffleDepositsInvested(address indexed yearnVault, uint256 amount);
+
     /// @notice restricts function call to owner of the contract
     modifier onlyOwner {
         require(msg.sender == owner, "Only owner can call this function");
@@ -130,6 +136,7 @@ contract NFTRaffle is VRFConsumerBaseV2, IERC721Receiver {
         IERC721(_nftAddress).safeTransferFrom(msg.sender, address(this), _tokenId);
         nftAddress = _nftAddress;
         nftId = _tokenId;
+        emit NFTDeposited(_nftAddress, _tokenId);
     }
 
     /**
@@ -159,6 +166,7 @@ contract NFTRaffle is VRFConsumerBaseV2, IERC721Receiver {
         // Approve the yearn vault to pull tokens 
         IERC20(interestToken).approve(yearnVault, interestTokenBalanceBefore);
         IYearnVault(yearnVault).deposit(interestTokenBalanceBefore);
+        emit RaffleDepositsInvested(yearnVault, interestTokenBalanceBefore);
     }
 
     /**
