@@ -74,6 +74,9 @@ contract NFTRaffle is VRFConsumerBaseV2, IERC721Receiver {
         uint256 upperBound;
     }
 
+    /// @notice emitted when the raffle is entered
+    event RaffleEntered(address indexed depositor, uint256 amount);
+
     /// @notice restricts function call to owner of the contract
     modifier onlyOwner {
         require(msg.sender == owner, "Only owner can call this function");
@@ -123,7 +126,7 @@ contract NFTRaffle is VRFConsumerBaseV2, IERC721Receiver {
      * @notice allows a user to enter the raffle
      * @param amount the amount to enter into the raffle
      */
-    function enterRaffle(uint256 amount) external depositPeriodActive {
+    function enterRaffle(uint256 amount) external nftDeposited depositPeriodActive {
         // Transfer amount interestTokens to this contract
         IERC20(interestToken).safeTransferFrom(msg.sender, address(this), amount);
         Range memory range = Range(largestTicketNumber, largestTicketNumber + amount - 1);
@@ -131,6 +134,7 @@ contract NFTRaffle is VRFConsumerBaseV2, IERC721Receiver {
         userTickets[msg.sender].push(range);
         // Update largest ticket number
         largestTicketNumber = largestTicketNumber + amount;
+        emit RaffleEntered(msg.sender, amount);
     }
 
     /**
